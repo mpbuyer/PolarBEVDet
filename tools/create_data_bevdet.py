@@ -12,6 +12,7 @@ out_dir = os.environ.get(
     "NUSC_OUT_DIR",
     "/kaggle/working/nuscenes_infos"
 )
+os.makedirs(out_dir, exist_ok=True)
 
 map_name_from_general_to_detection = {
     'human.pedestrian.adult': 'pedestrian',
