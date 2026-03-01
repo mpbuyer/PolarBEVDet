@@ -259,7 +259,8 @@ model = dict(
 ###############################################################################
 # Set-up the dataset
 dataset_type = 'NuScenesDatasetBEVDet'
-data_root = 'data/nuscenes/'
+data_root = '/kaggle/input/datasets/mitanshuchakrawarty/nuscenes/v1.0-trainval/'
+out_dir = '/kaggle/working/nuscenes_infos/'
 file_client_args = dict(backend='disk')
 
 bda_aug_conf = dict(
@@ -340,7 +341,7 @@ data = dict(
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'nuscenes_infos_train.pkl',
+        ann_file=out_dir + 'nuscenes_infos_train.pkl',
         pipeline=train_pipeline,
         classes=class_names,
         test_mode=False,
@@ -357,7 +358,7 @@ data = dict(
         data_root=data_root,
         pipeline=test_pipeline,
         classes=class_names,
-        ann_file=data_root + 'nuscenes_infos_val.pkl',
+        ann_file=out_dir + 'nuscenes_infos_val.pkl',
         modality=input_modality,
         img_info_prototype='bevdet',
         seq_mode=True,
@@ -368,7 +369,7 @@ data = dict(
          data_root=data_root,
          pipeline=test_pipeline,
          classes=class_names,
-         ann_file=data_root + 'nuscenes_infos_val.pkl',
+         ann_file=out_dir + 'nuscenes_infos_val.pkl',
          modality=input_modality,
          img_info_prototype='bevdet',
          seq_mode=True,
