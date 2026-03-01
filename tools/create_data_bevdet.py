@@ -8,7 +8,7 @@ from tools.data_converter import nuscenes_converter as nuscenes_converter
 from add_2d_info import add_ann_2d_info
 import os
 
-out_dir = out_dir = os.environ.get(
+out_dir = os.environ.get(
     "NUSC_OUT_DIR",
     "/kaggle/working/nuscenes_infos"
 )
