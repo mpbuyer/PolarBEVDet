@@ -90,6 +90,7 @@ def nuscenes_data_prep(root_path, out_dir, info_prefix, version, max_sweeps=10):
 
     Args:
         root_path (str): Path of dataset root.
+        out_dir (str): Path of pkl files for Kaggle purposes
         info_prefix (str): The prefix of info filenames.
         version (str): Dataset version.
         max_sweeps (int, optional): Number of input consecutive frames.
