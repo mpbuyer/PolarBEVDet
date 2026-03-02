@@ -82,7 +82,7 @@ def get_gt(info):
     return gt_boxes, gt_labels
 
 
-def nuscenes_data_prep(root_path, info_prefix, version, max_sweeps=10):
+def nuscenes_data_prep(root_path, out_dir, info_prefix, version, max_sweeps=10):
     """Prepare data related to nuScenes dataset.
 
     Related data consists of '.pkl' files recording basic infos,
@@ -96,7 +96,7 @@ def nuscenes_data_prep(root_path, info_prefix, version, max_sweeps=10):
             Default: 10
     """
     nuscenes_converter.create_nuscenes_infos(
-        root_path, info_prefix, version=version, max_sweeps=max_sweeps)
+        root_path, out_dir, info_prefix, version=version, max_sweeps=max_sweeps)
 
 
 def add_ann_adj_info(extra_tag):
