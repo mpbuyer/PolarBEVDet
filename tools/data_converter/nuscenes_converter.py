@@ -164,6 +164,7 @@ def _fill_trainval_infos(nusc,
     train_nusc_infos = []
     val_nusc_infos = []
     frame_idx = 0
+    missing_lidar = 0
     for sample in mmcv.track_iter_progress(nusc.sample):
         lidar_token = sample['data']['LIDAR_TOP']
         sd_rec = nusc.get('sample_data', sample['data']['LIDAR_TOP'])
@@ -172,7 +173,9 @@ def _fill_trainval_infos(nusc,
         pose_record = nusc.get('ego_pose', sd_rec['ego_pose_token'])
         lidar_path, boxes, _ = nusc.get_sample_data(lidar_token)
 
-        mmcv.check_file_exist(lidar_path)
+        if not osp.exists(lidar_path):
+          missing_lidar += 1
+          continue
 
         info = {
             'lidar_path': lidar_path,
@@ -279,6 +282,7 @@ def _fill_trainval_infos(nusc,
             train_nusc_infos.append(info)
         else:
             val_nusc_infos.append(info)
+    print(f"skipped missing lidar keyframes: {missing_lidar}")
 
     return train_nusc_infos, val_nusc_infos
 
