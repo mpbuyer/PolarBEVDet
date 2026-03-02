@@ -8,12 +8,6 @@ from tools.data_converter import nuscenes_converter as nuscenes_converter
 from add_2d_info import add_ann_2d_info
 import os
 
-out_dir = os.environ.get(
-    "NUSC_OUT_DIR",
-    "/kaggle/working/nuscenes_infos"
-)
-os.makedirs(out_dir, exist_ok=True)
-
 map_name_from_general_to_detection = {
     'human.pedestrian.adult': 'pedestrian',
     'human.pedestrian.child': 'pedestrian',
@@ -108,6 +102,11 @@ def nuscenes_data_prep(root_path, info_prefix, version, max_sweeps=10):
 def add_ann_adj_info(extra_tag):
     nuscenes_version = 'v1.0-trainval'
     dataroot = '/kaggle/input/datasets/mitanshuchakrawarty/nuscenes/v1.0-trainval'
+    out_dir = os.environ.get(
+    "NUSC_OUT_DIR",
+    "/kaggle/working/nuscenes_infos"
+    )
+    os.makedirs(out_dir, exist_ok=True)
     nuscenes = NuScenes(nuscenes_version, dataroot)
     for set in ['train', 'val']:
         dataset = pickle.load(
