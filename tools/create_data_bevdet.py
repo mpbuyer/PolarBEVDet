@@ -148,11 +148,11 @@ if __name__ == '__main__':
     train_version = f'{version}-trainval'
     root_path = '/kaggle/input/datasets/mitanshuchakrawarty/nuscenes/v1.0-trainval'
     extra_tag = 'nuscenes'
-    # nuscenes_data_prep(
-    #     root_path=root_path,
-    #     info_prefix=extra_tag,
-    #     version=train_version,
-    #     max_sweeps=10)
+    nuscenes_data_prep(
+        root_path=root_path,
+        info_prefix=extra_tag,
+        version=train_version,
+        max_sweeps=10)
 
     print('add_ann_infos')
     add_ann_adj_info(extra_tag)
