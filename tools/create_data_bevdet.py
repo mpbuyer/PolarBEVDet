@@ -106,7 +106,6 @@ def add_ann_adj_info(extra_tag):
     "NUSC_OUT_DIR",
     "/kaggle/working/nuscenes_infos"
     )
-    os.makedirs(out_dir, exist_ok=True)
     nuscenes = NuScenes(nuscenes_version, dataroot)
     for set in ['train', 'val']:
         dataset = pickle.load(
@@ -147,9 +146,12 @@ if __name__ == '__main__':
     version = 'v1.0'
     train_version = f'{version}-trainval'
     root_path = '/kaggle/input/datasets/mitanshuchakrawarty/nuscenes/v1.0-trainval'
+    out_dir = os.environ.get("NUSC_OUT_DIR", "/kaggle/working/nuscenes_infos")
+    os.makedirs(out_dir, exist_ok=True)
     extra_tag = 'nuscenes'
     nuscenes_data_prep(
         root_path=root_path,
+        out_dir = out_dir,
         info_prefix=extra_tag,
         version=train_version,
         max_sweeps=10)
