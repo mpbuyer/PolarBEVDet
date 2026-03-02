@@ -173,9 +173,9 @@ def _fill_trainval_infos(nusc,
         pose_record = nusc.get('ego_pose', sd_rec['ego_pose_token'])
         lidar_path, boxes, _ = nusc.get_sample_data(lidar_token)
 
-        if not osp.exists(lidar_path):
-          missing_lidar += 1
-          continue
+        if not os.path.exists(lidar_path):
+            missing_lidar += 1
+            continue
 
         info = {
             'lidar_path': lidar_path,
