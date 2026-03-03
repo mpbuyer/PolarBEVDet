@@ -1,5 +1,7 @@
 _base_ = ['../../../mmdetection3d/configs/_base_/datasets/nus-3d.py',
           '../../../mmdetection3d/configs/_base_/default_runtime.py']
+dist_params = dict(backend='nccl')
+
 import math
 
 work_dir = None
