@@ -18,7 +18,7 @@ def swap_ema_and_non_ema(load_path):
             del ckpt['state_dict'][ema_name]
 
     # out_path = load_path.replace(".pth", "_ema.pth")
-    out_path = /kaggle/working/iter_21096_ema.pth")
+    out_path = "/kaggle/working/iter_21096_ema.pth"
     if os.path.exists(out_path):
         print(out_path, "exists, not overwriting.")
     else:
