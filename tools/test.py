@@ -237,7 +237,7 @@ def main():
     if rank == 0:
         if args.out:
             print(f'\nwriting results to {args.out}')
-            mmcv.dump(outputs['bbox_results'], args.out)
+            mmcv.dump(outputs, args.out)
         kwargs = {} if args.eval_options is None else args.eval_options
         kwargs['jsonfile_prefix'] = osp.join('test', args.config.split(
             '/')[-1].split('.')[-2], time.ctime().replace(' ', '_').replace(':', '_'))
