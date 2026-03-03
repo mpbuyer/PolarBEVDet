@@ -17,7 +17,7 @@ find_unused_parameters = False
 # # of iters in each epoch depends on the overall batch size, which is # of 
 # GPUs (num_gpus) and batch size per GPU (batch_size). "28130" is # of training
 # samples in nuScenes.
-num_gpus = 4
+num_gpus = 1
 batch_size = 8
 num_iters_per_epoch = 28130 // (num_gpus * batch_size)
 num_epochs = 24
