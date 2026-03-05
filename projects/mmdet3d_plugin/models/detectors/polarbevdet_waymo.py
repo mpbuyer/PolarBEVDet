@@ -32,6 +32,7 @@ class PolarBEVDetWaymo(BEVDet):
         self.grid = None
         self.prev_scene_token = None
         self.with_cp = with_cp
+        self.latest_bev_pre_encoder = None
 
         # Lightweight MLP
         self.embed = nn.Sequential(
@@ -566,6 +567,7 @@ class PolarBEVDetWaymo(BEVDet):
         else:
             pred_seg = None
 
+        self.latest_bev_pre_encoder = bev_feat
         x = self.bev_encoder(bev_feat)  # (B, C=64*4=256, bev_H, bev_W)
 
         return img_feat, [x], depth, pred_seg
@@ -700,6 +702,8 @@ class PolarBEVDetWaymo(BEVDet):
             if return_bev_features:
                 img_meta = img_metas[batch_idx]
                 result_dict['bev_features'] = bev_feats[batch_idx]
+                if self.latest_bev_pre_encoder is not None:
+                    result_dict['bev_features_pre_encoder'] = self.latest_bev_pre_encoder[batch_idx]
                 result_dict['sample_idx'] = img_meta.get('sample_idx')
                 result_dict['scene_token'] = img_meta.get('scene_token')
                 result_dict['scene_name'] = img_meta.get('scene_name')

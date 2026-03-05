@@ -60,10 +60,19 @@ def parse_args():
         default='cartesian',
         help='save PCA BEV image in cartesian space or native polar space')
     parser.add_argument(
+        '--bev-source',
+        choices=['pre_encoder', 'post_encoder'],
+        default='pre_encoder',
+        help='which BEV tensor to visualize')
+    parser.add_argument(
         '--cart-size',
         type=int,
         default=512,
         help='output size for cartesian BEV image (square)')
+    parser.add_argument(
+        '--use-fp16-wrap',
+        action='store_true',
+        help='use mmcv fp16 wrapper for inference (disabled by default)')
     parser.add_argument(
         '--cfg-options',
         nargs='+',
@@ -334,7 +343,7 @@ def main():
 
     model = build_model(cfg.model, test_cfg=cfg.get('test_cfg'))
     fp16_cfg = cfg.get('fp16', None)
-    if fp16_cfg is not None:
+    if fp16_cfg is not None and args.use_fp16_wrap:
         wrap_fp16_model(model)
     checkpoint = load_checkpoint(model, args.checkpoint, map_location='cpu')
 
@@ -408,7 +417,12 @@ def main():
                 bev_path = osp.join(args.out_dir, bev_rel)
                 box_path = osp.join(args.out_dir, box_rel)
 
-                bev_feature = pred.get('bev_features', None)
+                if args.bev_source == 'pre_encoder':
+                    bev_feature = pred.get('bev_features_pre_encoder', None)
+                    if bev_feature is None:
+                        bev_feature = pred.get('bev_features', None)
+                else:
+                    bev_feature = pred.get('bev_features', None)
                 if bev_feature is None:
                     raise RuntimeError(
                         'Model output does not include bev_features. '
@@ -419,13 +433,16 @@ def main():
                     raise RuntimeError(f'Unexpected bev_features shape: {tuple(bev_feature.shape)}')
                 if processed == 0:
                     feat_stats = bev_feature.detach().float().cpu()
+                    spatial_std = feat_stats.flatten(1).std(dim=1)
                     print(
                         '[Debug] bev_features stats: '
                         f'shape={tuple(feat_stats.shape)}, '
                         f'mean={feat_stats.mean().item():.5f}, '
                         f'std={feat_stats.std().item():.5f}, '
                         f'min={feat_stats.min().item():.5f}, '
-                        f'max={feat_stats.max().item():.5f}'
+                        f'max={feat_stats.max().item():.5f}, '
+                        f'spatial_std_mean={spatial_std.mean().item():.5f}, '
+                        f'spatial_std_max={spatial_std.max().item():.5f}'
                     )
 
                 bev_img = pca_feature_to_rgb(bev_feature)
@@ -457,6 +474,7 @@ def main():
                     'boxes_json': box_rel,
                     'num_boxes': num_boxes,
                     'feature_space': args.feature_space,
+                    'bev_source': args.bev_source,
                 }
                 manifest_file.write(json.dumps(record) + '\n')
 
@@ -473,6 +491,7 @@ def main():
         'out_dir': args.out_dir,
         'num_samples': processed,
         'feature_space': args.feature_space,
+        'bev_source': args.bev_source,
         'cart_size': args.cart_size if args.feature_space == 'cartesian' else None,
         'score_thr': args.score_thr,
         'manifest': manifest_path,
