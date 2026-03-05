@@ -137,7 +137,9 @@ def pca_feature_to_rgb(bev_feature):
     feat = bev_feature.detach().float().cpu()
     c, h, w = feat.shape
     pixels = feat.permute(1, 2, 0).reshape(-1, c)
-    pixels = pixels - pixels.mean(dim=0, keepdim=True)
+    mean = pixels.mean(dim=0, keepdim=True)
+    std = pixels.std(dim=0, keepdim=True).clamp(min=1e-6)
+    pixels = (pixels - mean) / std
 
     q = min(3, c, pixels.shape[0])
     if q == 0:
@@ -159,6 +161,22 @@ def pca_feature_to_rgb(bev_feature):
     img = torch.stack(norm_channels, dim=0)
     img = (img * 255.0).byte().permute(1, 2, 0).numpy()
     return img
+
+
+def stretch_rgb_percentile(rgb_image, low=1.0, high=99.0, valid_mask=None):
+    img = rgb_image.astype(np.float32)
+    out = np.zeros_like(img, dtype=np.float32)
+    for ch in range(3):
+        data = img[..., ch]
+        vals = data if valid_mask is None else data[valid_mask]
+        if vals.size == 0:
+            continue
+        lo = np.percentile(vals, low)
+        hi = np.percentile(vals, high)
+        denom = max(hi - lo, 1e-6)
+        norm = np.clip((data - lo) / denom, 0.0, 1.0)
+        out[..., ch] = norm
+    return (out * 255.0).astype(np.uint8)
 
 
 def polar_rgb_to_cartesian(rgb_image, azimuth_cfg, radius_cfg, cart_size):
@@ -197,6 +215,9 @@ def polar_rgb_to_cartesian(rgb_image, azimuth_cfg, radius_cfg, cart_size):
     sampled[:, outside] = 0
 
     sampled = (sampled.clamp(0, 1) * 255.0).byte().permute(1, 2, 0).numpy()
+    valid_mask = (~outside).cpu().numpy()
+    sampled = stretch_rgb_percentile(sampled, low=1.0, high=99.0, valid_mask=valid_mask)
+    sampled[~valid_mask] = 0
     return sampled
 
 
