@@ -289,6 +289,7 @@ class NuScenesDatasetBEVDet(Custom3DDataset):
             sweeps=info['sweeps'],
             scene_token=info['scene_token'],
             scene_name=info['scene_name'],
+            frame_idx=info.get('frame_idx', -1),
             timestamp=info['timestamp'] / 1e6,
         )
         if not self.test_mode and self.seq_mode:  # for seq_mode

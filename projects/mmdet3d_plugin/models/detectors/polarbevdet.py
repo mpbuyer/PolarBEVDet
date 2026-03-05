@@ -659,6 +659,8 @@ class PolarBEVDet(BEVDet):
                              }
             }
         """
+        return_bev_features = kwargs.pop('return_bev_features', False)
+
         if img_metas[0]['scene_token'] != self.prev_scene_token:
             self.prev_scene_token = img_metas[0]['scene_token']
             img_metas[0]['prev_exists'] = img_inputs[0].new_zeros(1).int()
@@ -678,8 +680,15 @@ class PolarBEVDet(BEVDet):
         #   'scores_3d': (N, )
         #   'labels_3d': (N, )
         # }
-        for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
+        for batch_idx, (result_dict, pts_bbox) in enumerate(zip(bbox_list, bbox_pts)):
             result_dict['pts_bbox'] = pts_bbox
+            if return_bev_features:
+                img_meta = img_metas[batch_idx]
+                result_dict['bev_features'] = bev_feats[batch_idx]
+                result_dict['sample_idx'] = img_meta.get('sample_idx')
+                result_dict['scene_token'] = img_meta.get('scene_token')
+                result_dict['scene_name'] = img_meta.get('scene_name')
+                result_dict['frame_idx'] = img_meta.get('frame_idx')
+                result_dict['timestamp'] = img_meta.get('timestamp')
         return bbox_list
-
 

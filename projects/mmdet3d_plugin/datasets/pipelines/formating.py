@@ -139,6 +139,7 @@ class Collect3D(object):
                    'pts_filename', 'transformation_3d_flow', 'trans_mat',
                    'affine_aug', 'prev_exists', 'sequence_group_idx', 'scene_token',
                    'start_of_sequence', 'curr_to_prev_lidar_rt', 'ego2global', 'scene_name',
+                   'frame_idx', 'timestamp',
                    'camera_center', 'canvas')):
         self.keys = keys
         self.meta_keys = meta_keys

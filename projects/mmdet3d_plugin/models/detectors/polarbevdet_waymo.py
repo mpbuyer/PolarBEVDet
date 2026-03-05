@@ -673,6 +673,8 @@ class PolarBEVDetWaymo(BEVDet):
                              }
             }
         """
+        return_bev_features = kwargs.pop('return_bev_features', False)
+
         if img_metas[0]['scene_token'] != self.prev_scene_token:
             if self.idx % self.load_interval == 0:
                 self.prev_scene_token = img_metas[0]['scene_token']
@@ -693,8 +695,16 @@ class PolarBEVDetWaymo(BEVDet):
         #   'scores_3d': (N, )
         #   'labels_3d': (N, )
         # }
-        for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
+        for batch_idx, (result_dict, pts_bbox) in enumerate(zip(bbox_list, bbox_pts)):
             result_dict['pts_bbox'] = pts_bbox
+            if return_bev_features:
+                img_meta = img_metas[batch_idx]
+                result_dict['bev_features'] = bev_feats[batch_idx]
+                result_dict['sample_idx'] = img_meta.get('sample_idx')
+                result_dict['scene_token'] = img_meta.get('scene_token')
+                result_dict['scene_name'] = img_meta.get('scene_name')
+                result_dict['frame_idx'] = img_meta.get('frame_idx')
+                result_dict['timestamp'] = img_meta.get('timestamp')
         self.idx = (self.idx + 1) % self.load_interval
 
         return bbox_list
@@ -709,4 +719,3 @@ class PolarBEVDetWaymo(BEVDet):
         assert self.with_pts_bbox
         outs = self.pts_bbox_head(bev_feats)
         return outs
-
