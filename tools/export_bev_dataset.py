@@ -161,19 +161,35 @@ def pca_feature_to_rgb(bev_feature):
     img = torch.stack(norm_channels, dim=0)
     img = (img * 255.0).byte().permute(1, 2, 0).numpy()
 
-    # If PCA visualization collapses to near-uniform color, fall back
-    # to channel-deviation energy which better exposes spatial detail.
+    # If PCA visualization collapses to near-uniform color, fall back to
+    # highest-variance channels, then gradient-energy as last resort.
     sv_energy = float((s[0] / (s.sum() + 1e-6)).item()) if s.numel() > 0 else 1.0
     if img.std() < 3.0 or sv_energy > 0.995:
-        mean_feat = feat.mean(dim=0, keepdim=True)  # (1, H, W)
-        dev = torch.norm(feat - mean_feat, dim=0)   # (H, W)
-        lo = torch.quantile(dev, 0.01)
-        hi = torch.quantile(dev, 0.995)
-        dev = ((dev - lo) / (hi - lo + 1e-6)).clamp(0, 1)
-        # Apply gamma to lift mid-tones.
-        dev = torch.pow(dev, 0.6)
-        dev_u8 = (dev * 255.0).byte().numpy()
-        img = np.stack([dev_u8, dev_u8, dev_u8], axis=-1)
+        spatial_std = feat.flatten(1).std(dim=1)
+        topk = torch.topk(spatial_std, k=min(3, feat.shape[0])).indices
+        ch_img = feat[topk]
+        if ch_img.shape[0] < 3:
+            ch_img = F.pad(ch_img, (0, 0, 0, 0, 0, 3 - ch_img.shape[0]))
+        ch_norm = []
+        for ch in ch_img:
+            lo = torch.quantile(ch, 0.01)
+            hi = torch.quantile(ch, 0.99)
+            ch_norm.append(((ch - lo) / (hi - lo + 1e-6)).clamp(0, 1))
+        img = (torch.stack(ch_norm, dim=0) * 255.0).byte().permute(1, 2, 0).numpy()
+
+    if img.std() < 3.0:
+        mag = torch.norm(feat, dim=0)
+        gy = torch.zeros_like(mag)
+        gx = torch.zeros_like(mag)
+        gy[1:, :] = torch.abs(mag[1:, :] - mag[:-1, :])
+        gx[:, 1:] = torch.abs(mag[:, 1:] - mag[:, :-1])
+        edge = gx + gy
+        lo = torch.quantile(edge, 0.01)
+        hi = torch.quantile(edge, 0.995)
+        edge = ((edge - lo) / (hi - lo + 1e-6)).clamp(0, 1)
+        edge = torch.pow(edge, 0.7)
+        edge_u8 = (edge * 255.0).byte().numpy()
+        img = np.stack([edge_u8, edge_u8, edge_u8], axis=-1)
 
     return img
 
@@ -401,6 +417,16 @@ def main():
                     bev_feature = bev_feature.squeeze(0)
                 if bev_feature.ndim != 3:
                     raise RuntimeError(f'Unexpected bev_features shape: {tuple(bev_feature.shape)}')
+                if processed == 0:
+                    feat_stats = bev_feature.detach().float().cpu()
+                    print(
+                        '[Debug] bev_features stats: '
+                        f'shape={tuple(feat_stats.shape)}, '
+                        f'mean={feat_stats.mean().item():.5f}, '
+                        f'std={feat_stats.std().item():.5f}, '
+                        f'min={feat_stats.min().item():.5f}, '
+                        f'max={feat_stats.max().item():.5f}'
+                    )
 
                 bev_img = pca_feature_to_rgb(bev_feature)
                 if args.feature_space == 'cartesian':
