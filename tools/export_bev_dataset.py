@@ -104,15 +104,32 @@ def sanitize_for_filename(value):
     return value.strip('-') or 'unknown'
 
 
+def unwrap_meta_obj(obj):
+    while hasattr(obj, 'data'):
+        obj = obj.data
+    if isinstance(obj, (list, tuple)) and len(obj) == 1:
+        return unwrap_meta_obj(obj[0])
+    return obj
+
+
 def get_img_metas_from_data(data):
-    img_metas = data['img_metas']
-    if hasattr(img_metas, 'data'):
-        img_metas = img_metas.data
-    if isinstance(img_metas, list) and len(img_metas) == 1:
-        img_metas = img_metas[0]
-    if isinstance(img_metas, tuple):
-        img_metas = list(img_metas)
-    return img_metas
+    img_metas = unwrap_meta_obj(data['img_metas'])
+    if isinstance(img_metas, dict):
+        return [img_metas]
+    if isinstance(img_metas, (list, tuple)):
+        out = []
+        for item in img_metas:
+            item = unwrap_meta_obj(item)
+            if isinstance(item, dict):
+                out.append(item)
+            elif isinstance(item, (list, tuple)):
+                for sub_item in item:
+                    sub_item = unwrap_meta_obj(sub_item)
+                    if isinstance(sub_item, dict):
+                        out.append(sub_item)
+        if len(out) > 0:
+            return out
+    return [{}]
 
 
 def pca_feature_to_rgb(bev_feature):
@@ -315,6 +332,8 @@ def main():
                     break
 
                 img_meta = img_metas[batch_idx] if batch_idx < len(img_metas) else {}
+                if not isinstance(img_meta, dict):
+                    img_meta = {}
                 sample_token = to_python_scalar(pred.get('sample_idx', img_meta.get('sample_idx')))
                 scene_token = to_python_scalar(pred.get('scene_token', img_meta.get('scene_token')))
                 scene_name = to_python_scalar(pred.get('scene_name', img_meta.get('scene_name')))
