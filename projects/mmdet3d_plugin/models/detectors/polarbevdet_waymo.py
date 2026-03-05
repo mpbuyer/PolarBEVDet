@@ -691,6 +691,16 @@ class PolarBEVDetWaymo(BEVDet):
 
         bbox_list = [dict() for _ in range(len(img_metas))]
         bbox_pts = self.simple_test_pts(bev_feats, img_metas, rescale=rescale)
+        bev_det_heatmap = None
+        if return_bev_features and self.with_pts_bbox:
+            preds_dicts = self.pts_bbox_head(bev_feats)
+            task_heatmaps = []
+            for task_preds in preds_dicts:
+                hm = task_preds[0]['heatmap'].sigmoid()  # (B, C_cls, H, W)
+                hm = hm.max(dim=1).values               # (B, H, W)
+                task_heatmaps.append(hm)
+            if len(task_heatmaps) > 0:
+                bev_det_heatmap = torch.stack(task_heatmaps, dim=0).max(dim=0).values  # (B, H, W)
         # bbox_pts: List[dict0, dict1, ...],  len = batch_size
         # dict: {
         #   'boxes_3d': (N, 9)
@@ -704,6 +714,8 @@ class PolarBEVDetWaymo(BEVDet):
                 result_dict['bev_features'] = bev_feats[batch_idx]
                 if self.latest_bev_pre_encoder is not None:
                     result_dict['bev_features_pre_encoder'] = self.latest_bev_pre_encoder[batch_idx]
+                if bev_det_heatmap is not None:
+                    result_dict['bev_det_heatmap'] = bev_det_heatmap[batch_idx]
                 result_dict['sample_idx'] = img_meta.get('sample_idx')
                 result_dict['scene_token'] = img_meta.get('scene_token')
                 result_dict['scene_name'] = img_meta.get('scene_name')

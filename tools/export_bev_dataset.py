@@ -61,8 +61,8 @@ def parse_args():
         help='save PCA BEV image in cartesian space or native polar space')
     parser.add_argument(
         '--bev-source',
-        choices=['pre_encoder', 'post_encoder'],
-        default='pre_encoder',
+        choices=['det_heatmap', 'pre_encoder', 'post_encoder'],
+        default='det_heatmap',
         help='which BEV tensor to visualize')
     parser.add_argument(
         '--cart-size',
@@ -217,6 +217,21 @@ def stretch_rgb_percentile(rgb_image, low=1.0, high=99.0, valid_mask=None):
         norm = np.clip((data - lo) / denom, 0.0, 1.0)
         out[..., ch] = norm
     return (out * 255.0).astype(np.uint8)
+
+
+def heatmap_to_rgb(heatmap_tensor):
+    hm = heatmap_tensor.detach().float().cpu()
+    if hm.ndim == 3 and hm.shape[0] == 1:
+        hm = hm.squeeze(0)
+    if hm.ndim != 2:
+        raise RuntimeError(f'Expected heatmap shape (H, W), got {tuple(hm.shape)}')
+    lo = torch.quantile(hm, 0.01)
+    hi = torch.quantile(hm, 0.995)
+    hm = ((hm - lo) / (hi - lo + 1e-6)).clamp(0, 1)
+    hm_u8 = (hm * 255.0).byte().numpy()
+    # cv2 color map returns BGR
+    hm_bgr = cv2.applyColorMap(hm_u8, cv2.COLORMAP_TURBO)
+    return cv2.cvtColor(hm_bgr, cv2.COLOR_BGR2RGB)
 
 
 def polar_rgb_to_cartesian(rgb_image, azimuth_cfg, radius_cfg, cart_size):
@@ -417,35 +432,44 @@ def main():
                 bev_path = osp.join(args.out_dir, bev_rel)
                 box_path = osp.join(args.out_dir, box_rel)
 
-                if args.bev_source == 'pre_encoder':
+                if args.bev_source == 'det_heatmap':
+                    bev_feature = pred.get('bev_det_heatmap', None)
+                    is_heatmap = True
+                    if bev_feature is None:
+                        bev_feature = pred.get('bev_features_pre_encoder', None)
+                        is_heatmap = False
+                elif args.bev_source == 'pre_encoder':
                     bev_feature = pred.get('bev_features_pre_encoder', None)
                     if bev_feature is None:
                         bev_feature = pred.get('bev_features', None)
+                    is_heatmap = False
                 else:
                     bev_feature = pred.get('bev_features', None)
+                    is_heatmap = False
                 if bev_feature is None:
                     raise RuntimeError(
                         'Model output does not include bev_features. '
                         'Ensure the detector supports return_bev_features=True.')
-                if bev_feature.ndim == 4 and bev_feature.shape[0] == 1:
-                    bev_feature = bev_feature.squeeze(0)
-                if bev_feature.ndim != 3:
-                    raise RuntimeError(f'Unexpected bev_features shape: {tuple(bev_feature.shape)}')
                 if processed == 0:
                     feat_stats = bev_feature.detach().float().cpu()
-                    spatial_std = feat_stats.flatten(1).std(dim=1)
                     print(
-                        '[Debug] bev_features stats: '
+                        '[Debug] bev tensor stats: '
+                        f'source={args.bev_source}, '
                         f'shape={tuple(feat_stats.shape)}, '
                         f'mean={feat_stats.mean().item():.5f}, '
                         f'std={feat_stats.std().item():.5f}, '
                         f'min={feat_stats.min().item():.5f}, '
-                        f'max={feat_stats.max().item():.5f}, '
-                        f'spatial_std_mean={spatial_std.mean().item():.5f}, '
-                        f'spatial_std_max={spatial_std.max().item():.5f}'
+                        f'max={feat_stats.max().item():.5f}'
                     )
 
-                bev_img = pca_feature_to_rgb(bev_feature)
+                if is_heatmap:
+                    bev_img = heatmap_to_rgb(bev_feature)
+                else:
+                    if bev_feature.ndim == 4 and bev_feature.shape[0] == 1:
+                        bev_feature = bev_feature.squeeze(0)
+                    if bev_feature.ndim != 3:
+                        raise RuntimeError(f'Unexpected bev_features shape: {tuple(bev_feature.shape)}')
+                    bev_img = pca_feature_to_rgb(bev_feature)
                 if args.feature_space == 'cartesian':
                     if hasattr(cfg, 'grid_config'):
                         azimuth_cfg = cfg.grid_config['azimuth']
