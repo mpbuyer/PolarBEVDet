@@ -145,7 +145,7 @@ def pca_feature_to_rgb(bev_feature):
     if q == 0:
         return np.zeros((h, w, 3), dtype=np.uint8)
 
-    _, _, v = torch.pca_lowrank(pixels, q=q, center=False, niter=4)
+    _, s, v = torch.pca_lowrank(pixels, q=q, center=False, niter=4)
     reduced = pixels @ v[:, :q]
     if q < 3:
         reduced = F.pad(reduced, (0, 3 - q))
@@ -160,6 +160,21 @@ def pca_feature_to_rgb(bev_feature):
         norm_channels.append(norm)
     img = torch.stack(norm_channels, dim=0)
     img = (img * 255.0).byte().permute(1, 2, 0).numpy()
+
+    # If PCA visualization collapses to near-uniform color, fall back
+    # to channel-deviation energy which better exposes spatial detail.
+    sv_energy = float((s[0] / (s.sum() + 1e-6)).item()) if s.numel() > 0 else 1.0
+    if img.std() < 3.0 or sv_energy > 0.995:
+        mean_feat = feat.mean(dim=0, keepdim=True)  # (1, H, W)
+        dev = torch.norm(feat - mean_feat, dim=0)   # (H, W)
+        lo = torch.quantile(dev, 0.01)
+        hi = torch.quantile(dev, 0.995)
+        dev = ((dev - lo) / (hi - lo + 1e-6)).clamp(0, 1)
+        # Apply gamma to lift mid-tones.
+        dev = torch.pow(dev, 0.6)
+        dev_u8 = (dev * 255.0).byte().numpy()
+        img = np.stack([dev_u8, dev_u8, dev_u8], axis=-1)
+
     return img
 
 
