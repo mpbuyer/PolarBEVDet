@@ -61,8 +61,8 @@ def parse_args():
         help='save PCA BEV image in cartesian space or native polar space')
     parser.add_argument(
         '--bev-source',
-        choices=['det_heatmap', 'pre_encoder', 'post_encoder'],
-        default='det_heatmap',
+        choices=['det_class_rgb', 'det_heatmap', 'pre_encoder', 'post_encoder'],
+        default='det_class_rgb',
         help='which BEV tensor to visualize')
     parser.add_argument(
         '--cart-size',
@@ -232,6 +232,56 @@ def heatmap_to_rgb(heatmap_tensor):
     # cv2 color map returns BGR
     hm_bgr = cv2.applyColorMap(hm_u8, cv2.COLORMAP_TURBO)
     return cv2.cvtColor(hm_bgr, cv2.COLOR_BGR2RGB)
+
+
+def class_heatmap_to_rgb(class_heatmap_tensor):
+    hm = class_heatmap_tensor.detach().float().cpu()  # (C, H, W)
+    if hm.ndim != 3:
+        raise RuntimeError(f'Expected class heatmap shape (C, H, W), got {tuple(hm.shape)}')
+
+    c, h, w = hm.shape
+    top2 = torch.topk(hm, k=min(2, c), dim=0)
+    top1_prob = top2.values[0]  # (H, W)
+    if c > 1:
+        margin = top2.values[0] - top2.values[1]
+    else:
+        margin = top1_prob
+    cls_idx = top2.indices[0]  # (H, W)
+
+    palette = torch.tensor([
+        [244, 67, 54], [33, 150, 243], [76, 175, 80], [255, 193, 7], [156, 39, 176],
+        [0, 188, 212], [255, 87, 34], [139, 195, 74], [63, 81, 181], [255, 152, 0],
+        [121, 85, 72], [96, 125, 139], [233, 30, 99], [3, 169, 244], [205, 220, 57],
+        [255, 235, 59], [0, 150, 136], [103, 58, 183], [255, 111, 0], [0, 121, 107],
+    ], dtype=torch.float32)
+    palette = palette / 255.0
+
+    # if more classes than palette, wrap around deterministically
+    cls_mod = torch.remainder(cls_idx, palette.shape[0])
+    base_rgb = palette[cls_mod.long()]  # (H, W, 3)
+
+    # local contrast enhancement over confidence
+    prob_np = top1_prob.numpy()
+    prob_blur = cv2.GaussianBlur(prob_np, (0, 0), sigmaX=2.0, sigmaY=2.0)
+    local = np.abs(prob_np - prob_blur)
+    lo = np.percentile(local, 1.0)
+    hi = np.percentile(local, 99.5)
+    local = np.clip((local - lo) / (max(hi - lo, 1e-6)), 0.0, 1.0)
+
+    mar = margin
+    mar_lo = torch.quantile(mar, 0.01)
+    mar_hi = torch.quantile(mar, 0.995)
+    mar = ((mar - mar_lo) / (mar_hi - mar_lo + 1e-6)).clamp(0, 1).numpy()
+
+    # value map combines confidence and local contrast
+    val = np.clip(0.15 + 0.45 * mar + 0.60 * local, 0.0, 1.0)
+    rgb = base_rgb.numpy() * val[..., None]
+    rgb = (np.clip(rgb, 0.0, 1.0) * 255.0).astype(np.uint8)
+
+    if rgb.std() < 3.0:
+        # fallback to confidence heatmap if class map is still too uniform
+        return heatmap_to_rgb(top1_prob)
+    return rgb
 
 
 def polar_rgb_to_cartesian(rgb_image, azimuth_cfg, radius_cfg, cart_size):
@@ -432,19 +482,31 @@ def main():
                 bev_path = osp.join(args.out_dir, bev_rel)
                 box_path = osp.join(args.out_dir, box_rel)
 
-                if args.bev_source == 'det_heatmap':
+                if args.bev_source == 'det_class_rgb':
+                    bev_feature = pred.get('bev_det_cls_heatmap', None)
+                    is_class_heatmap = True
+                    is_heatmap = False
+                    if bev_feature is None:
+                        bev_feature = pred.get('bev_det_heatmap', None)
+                        is_class_heatmap = False
+                        is_heatmap = True
+                elif args.bev_source == 'det_heatmap':
                     bev_feature = pred.get('bev_det_heatmap', None)
+                    is_class_heatmap = False
                     is_heatmap = True
                     if bev_feature is None:
                         bev_feature = pred.get('bev_features_pre_encoder', None)
+                        is_class_heatmap = False
                         is_heatmap = False
                 elif args.bev_source == 'pre_encoder':
                     bev_feature = pred.get('bev_features_pre_encoder', None)
                     if bev_feature is None:
                         bev_feature = pred.get('bev_features', None)
+                    is_class_heatmap = False
                     is_heatmap = False
                 else:
                     bev_feature = pred.get('bev_features', None)
+                    is_class_heatmap = False
                     is_heatmap = False
                 if bev_feature is None:
                     raise RuntimeError(
@@ -462,7 +524,9 @@ def main():
                         f'max={feat_stats.max().item():.5f}'
                     )
 
-                if is_heatmap:
+                if is_class_heatmap:
+                    bev_img = class_heatmap_to_rgb(bev_feature)
+                elif is_heatmap:
                     bev_img = heatmap_to_rgb(bev_feature)
                 else:
                     if bev_feature.ndim == 4 and bev_feature.shape[0] == 1:
